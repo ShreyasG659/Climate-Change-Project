@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stay, Switch, or Move?</title>
+<meta name="description" content="An interactive decision model for a Kansas farmer facing heat, drought, and rising crop-insurance premiums: keep growing wheat, switch to sorghum, or move to Texas.">
+<style>
+  :root {
+    --bg: #f7f4ee;
+    --surface: #ffffff;
+    --surface-2: #f0ebe1;
+    --text: #1f1d1a;
+    --muted: #5f5a52;
+    --border: #ddd5c6;
+    --accent: #8a5a1c;
+    --grid: #e6dfd2;
+    --wheat: #b7791f;
+    --sorghum: #a63d2a;
+    --texas: #2f63a3;
+    --wheat-bg: #f3e1bd;
+    --sorghum-bg: #efc9bf;
+    --texas-bg: #c9daf0;
+    --good: #2f7a3e;
+    --bad: #a63d2a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161513;
+      --surface: #201e1b;
+      --surface-2: #2a2723;
+      --text: #ece7de;
+      --muted: #a8a196;
+      --border: #3b3731;
+      --accent: #e0a85a;
+      --grid: #322e29;
+      --wheat: #e2a640;
+      --sorghum: #e3735c;
+      --texas: #6fa2e3;
+      --wheat-bg: #5a4318;
+      --sorghum-bg: #5c271d;
+      --texas-bg: #1f3a5e;
+      --good: #6cc27d;
+      --bad: #e3735c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #161513; --surface: #201e1b; --surface-2: #2a2723; --text: #ece7de;
+    --muted: #a8a196; --border: #3b3731; --accent: #e0a85a; --grid: #322e29;
+    --wheat: #e2a640; --sorghum: #e3735c; --texas: #6fa2e3;
+    --wheat-bg: #5a4318; --sorghum-bg: #5c271d; --texas-bg: #1f3a5e;
+    --good: #6cc27d; --bad: #e3735c;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+  header { padding: 48px 0 24px; }
+  .eyebrow { color: var(--accent); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; font-size: 13px; margin: 0 0 8px; }
+  h1 { font-size: clamp(28px, 5vw, 42px); line-height: 1.15; margin: 0 0 12px; letter-spacing: -.01em; }
+  h2 { font-size: 22px; margin: 0 0 12px; }
+  h3 { font-size: 17px; margin: 0 0 6px; }
+  p { margin: 0 0 12px; }
+  .lede { font-size: 18px; color: var(--muted); max-width: 760px; }
+  section { margin: 0 0 28px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 14px; }
+
+  .options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .opt { border-left: 5px solid; padding: 12px 14px; background: var(--surface); border-radius: 8px; border-top: 1px solid var(--border); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .opt.wheat { border-left-color: var(--wheat); }
+  .opt.sorghum { border-left-color: var(--sorghum); }
+  .opt.texas { border-left-color: var(--texas); }
+  .opt p { font-size: 14px; color: var(--muted); margin: 0; }
+
+  .tool { display: grid; grid-template-columns: 340px 1fr; gap: 20px; align-items: start; }
+  .controls { position: sticky; top: 12px; }
+  .slider { margin-bottom: 20px; }
+  .slider:last-of-type { margin-bottom: 8px; }
+  .slider-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .slider label { font-weight: 600; font-size: 15px; }
+  .tag { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding: 2px 6px; border-radius: 4px; margin-left: 6px; vertical-align: 2px; }
+  .tag.hazard { background: var(--sorghum-bg); color: var(--text); }
+  .tag.vuln { background: var(--texas-bg); color: var(--text); }
+  .tag.cost { background: var(--wheat-bg); color: var(--text); }
+  output { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--accent); white-space: nowrap; }
+  .slider .hint { font-size: 13px; color: var(--muted); margin: 2px 0 0; }
+  input[type=range] { width: 100%; margin: 8px 0 0; accent-color: var(--accent); }
+  .btnrow { display: flex; gap: 8px; flex-wrap: wrap; }
+  button { font: inherit; font-size: 14px; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+
+  .verdict { display: flex; gap: 14px; align-items: center; padding: 14px 18px; border-radius: 10px; margin-bottom: 16px; border: 1px solid var(--border); }
+  .verdict .big { font-size: 20px; font-weight: 700; }
+  .swatch { width: 14px; height: 14px; border-radius: 3px; display: inline-block; flex: none; }
+
+  .chart-title { font-weight: 700; margin: 0 0 2px; }
+  .chart-sub { font-size: 13px; color: var(--muted); margin: 0 0 8px; }
+  svg { display: block; width: 100%; height: auto; }
+  svg text { fill: var(--muted); font-size: 12px; font-family: inherit; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; margin-top: 6px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+  .two { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  #map { max-width: 560px; }
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
+  caption { text-align: left; font-weight: 700; padding-bottom: 2px; font-size: 16px; }
+  caption .chart-sub { font-weight: 400; display: block; }
+  th, td { padding: 7px 10px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; white-space: normal; }
+  thead th { font-size: 13px; border-bottom: 2px solid var(--border); }
+  tr.total td { font-weight: 700; border-top: 2px solid var(--border); }
+  td.pos { color: var(--good); } td.neg { color: var(--bad); }
+  td.win { background: var(--surface-2); }
+
+  .notice { counter-reset: n; list-style: none; padding: 0; margin: 0; }
+  .notice li { counter-increment: n; position: relative; padding-left: 38px; margin-bottom: 14px; }
+  .notice li::before { content: counter(n); position: absolute; left: 0; top: 0; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--bg); font-weight: 700; font-size: 14px; display: grid; place-items: center; }
+  .notice button { margin-top: 4px; font-size: 13px; padding: 3px 10px; }
+
+  .sources { font-size: 14px; }
+  .sources td, .sources th { text-align: left; white-space: normal; vertical-align: top; }
+  .sources td:nth-child(2) { white-space: nowrap; }
+  a { color: var(--accent); }
+  footer { padding: 24px 0 48px; font-size: 13px; color: var(--muted); }
+
+  @media (max-width: 900px) {
+    .tool { grid-template-columns: 1fr; }
+    .controls { position: static; }
+    .two { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 640px) {
+    .options { grid-template-columns: 1fr; }
+    header { padding-top: 28px; }
+    .card { padding: 16px; }
+    th, td { padding: 6px 6px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">Climate adaptation · A decision under uncertainty</p>
+  <h1>Stay, switch, or move? A Kansas farmer's climate decision</h1>
+  <p class="lede">Summers are getting hotter, droughts are coming more often, and crop insurance keeps getting more expensive. This page lets you test three choices against different futures and see which one keeps the farm profitable.</p>
+</header>
+
+<section>
+  <div class="card">
+    <h2>The issue</h2>
+    <p>Our decision maker farms about <strong>780 acres</strong> (the average Kansas farm) and grows dryland <strong>winter wheat</strong>. Climate change is reaching the farm three ways:</p>
+    <ul>
+      <li><strong>Heat.</strong> Wheat and corn yields fall steeply once temperatures pass critical thresholds (about 29–30 °C / 84–86 °F during key growth stages). Each extra degree costs more than the one before.</li>
+      <li><strong>Drought.</strong> Kansas had serious droughts in 2011–14, 2018 and 2022–23. In 2023 the state's wheat harvest was its smallest since the 1950s. Hotter air dries soils faster, so every drought hurts more.</li>
+      <li><strong>Insurance.</strong> Crop-insurance premiums rise as losses pile up and as risk is re-priced, which cuts into already thin margins.</li>
+    </ul>
+    <p>The farmer is weighing three options:</p>
+    <div class="options">
+      <div class="opt wheat"><h3>Stay: keep wheat</h3><p>Change nothing. Wheat is familiar and the equipment is paid for, but wheat is sensitive to heat and drought.</p></div>
+      <div class="opt sorghum"><h3>Switch: grain sorghum</h3><p>Stay in Kansas but plant sorghum, which handles heat and drought better. It has lower prices and needs some new equipment.</p></div>
+      <div class="opt texas"><h3>Move: Texas Blackland Prairie</h3><p>Sell up and buy deep, fertile clay soils with more rain (about 38 in. a year) and grow corn. But Texas is already hotter, and the land costs more.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="tool" id="tool">
+  <div class="controls card" aria-label="Scenario controls">
+    <h2>Set the scenario</h2>
+
+    <div class="slider">
+      <div class="slider-head"><label for="warming">Extra warming<span class="tag hazard">hazard</span></label><output id="warming-out" for="warming"></output></div>
+      <input type="range" id="warming" min="0" max="4" step="0.1" value="1">
+      <p class="hint">Growing-season warming above today's climate, in °C. About +1 °C by the 2040s; +2 to 3 °C by late century under high emissions.</p>
+    </div>
+
+    <div class="slider">
+      <div class="slider-head"><label for="drought">Drought frequency<span class="tag hazard">hazard</span></label><output id="drought-out" for="drought"></output></div>
+      <input type="range" id="drought" min="1" max="7" step="0.5" value="3">
+      <p class="hint">Years per decade with a damaging drought. Kansas has averaged about 3 recently.</p>
+    </div>
+
+    <div class="slider">
+      <div class="slider-head"><label for="irrigation">Irrigated share of Kansas acres<span class="tag vuln">vulnerability</span></label><output id="irrigation-out" for="irrigation"></output></div>
+      <input type="range" id="irrigation" min="0" max="60" step="5" value="15">
+      <p class="hint">More irrigation means less exposure to drought, but pumping costs rise as it gets hotter. The Ogallala aquifer limits this in western Kansas. (The Texas option is dryland.)</p>
+    </div>
+
+    <div class="slider">
+      <div class="slider-head"><label for="premium">Insurance premium increase<span class="tag cost">cost</span></label><output id="premium-out" for="premium"></output></div>
+      <input type="range" id="premium" min="0" max="150" step="5" value="30">
+      <p class="hint">Rise in farmer-paid crop-insurance premiums over today's rates. Premiums also climb automatically as droughts and heat get worse.</p>
+    </div>
+
+    <div class="slider">
+      <div class="slider-head"><label for="txland">Texas land price<span class="tag cost">cost</span></label><output id="txland-out" for="txland"></output></div>
+      <input type="range" id="txland" min="2000" max="6000" step="100" value="3500">
+      <p class="hint">$/acre for Blackland Prairie cropland. Kansas land sells for about $2,600/acre, and the farmer borrows the gap at 6.5%.</p>
+    </div>
+
+    <div class="btnrow">
+      <button type="button" id="reset">Reset to defaults</button>
+    </div>
+  </div>
+
+  <div>
+    <div class="verdict card" id="verdict" aria-live="polite"></div>
+
+    <div class="card" style="margin-bottom:16px">
+      <p class="chart-title" id="line-title">Expected net return as warming increases</p>
+      <p class="chart-sub">Average-year profit per acre after all costs, for each option. The dashed line marks the warming you set; the other sliders are held where you set them.</p>
+      <svg id="line" viewBox="0 0 640 340" role="img" aria-labelledby="line-title"></svg>
+      <div class="legend" id="legend"></div>
+    </div>
+
+    <div class="two">
+      <div class="card">
+        <p class="chart-title" id="map-title">Decision map: the best option for each mix of heat and drought</p>
+        <p class="chart-sub">Each cell is colored by the option with the highest net return. The ring marks your current scenario. Irrigation, insurance and land price come from the sliders.</p>
+        <svg id="map" viewBox="0 0 400 330" role="img" aria-labelledby="map-title"></svg>
+      </div>
+      <div class="card table-wrap">
+        <table id="table">
+          <caption>Where the money goes<span class="chart-sub">Per acre per year, average of good and bad years</span></caption>
+          <thead><tr><th scope="col">Line item</th><th scope="col">Wheat</th><th scope="col">Sorghum</th><th scope="col">Texas</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="card">
+    <h2>What each slider represents</h2>
+    <p><strong>Extra warming (hazard).</strong> How much hotter the growing season becomes. The yield damage is <em>non-linear</em>: going from +3 to +4 °C does much more harm than going from 0 to +1 °C. Places that are already hot (Central Texas) cross the damage threshold sooner.</p>
+    <p><strong>Drought frequency (hazard).</strong> How many years in ten have a damaging drought. In a drought year wheat loses about 35% of its yield, Texas corn on deep clay soils about 28%, and sorghum about 22%. Warming makes each drought worse.</p>
+    <p><strong>Irrigated share (vulnerability).</strong> How exposed the Kansas farm is. Irrigated acres lose about 85% less in a drought and are cheaper to insure, but irrigation costs money every year and that cost rises with heat. <strong>This slider decides how much the drought slider matters.</strong></p>
+    <p><strong>Insurance premium increase (cost).</strong> The rising premiums the farmer is already seeing. Revenue-protection insurance pays back part of drought losses, but the farmer pays a premium every year.</p>
+    <p><strong>Texas land price (cost).</strong> Moving means selling Kansas land and buying Texas land. Any price gap is borrowed, and the interest, plus moving costs spread over 20 years, counts against the Texas option.</p>
+  </div>
+</section>
+
+<section>
+  <div class="card">
+    <h2>What to notice as you move the sliders</h2>
+    <ol class="notice">
+      <li><strong>Drought only hurts as much as the farm is exposed.</strong> With no irrigation, moving drought from 1 to 6 years per decade cuts wheat's return by about $47/acre. With half the farm irrigated, the same move costs only about $31. The vulnerability slider changes how much the hazard slider matters. Irrigation isn't free, though: in a wet future it lowers profit, and it only pays off once droughts are frequent. Its cost also rises as the climate warms.<br><button type="button" data-preset="dry">Try: frequent drought, no irrigation</button> <button type="button" data-preset="wet">Try: same drought, 50% irrigated</button></li>
+      <li><strong>Moving south doesn't escape the heat.</strong> The Texas line starts high, because fertile soil and more rain give big corn yields, but it falls fastest as warming rises. Texas corn already grows close to its heat limit, so each added degree hurts it more than it hurts Kansas crops.<br><button type="button" data-preset="cheapTx">Try: cheap Texas land, little warming</button> <button type="button" data-preset="hotTx">Try: cheap Texas land, +3 °C</button></li>
+      <li><strong>Sorghum is the hedge.</strong> Sorghum earns less than wheat in a mild climate. But its line slopes down more gently, so it overtakes wheat as heat and drought build. On the decision map, sorghum covers the hot, dry corner.</li>
+      <li><strong>Insurance costs pile on top of the hazards.</strong> Premiums rise with the slider <em>and</em> with drought risk, so a high premium increase in a drought-prone future can push a thin wheat margin below zero.</li>
+      <li><strong>No option wins everywhere.</strong> The decision map shows which choice is most robust across futures. That matters because the farmer can't know which future will arrive.</li>
+    </ol>
+  </div>
+</section>
+
+<section>
+  <div class="card">
+    <h2>How the model works</h2>
+    <p>For each option the page calculates an <strong>average-year net return per acre</strong>:</p>
+    <p class="small" style="font-family: ui-monospace, Menlo, monospace; background: var(--surface-2); padding: 10px 12px; border-radius: 6px; overflow-x:auto">
+      yield = base yield × (1 − heat loss) × (1 − drought loss)<br>
+      heat loss = sensitivity × ΔT × (1 + 0.15 × (ΔT + how hot the place already is)) × (1 − 0.35 × irrigated share)<br>
+      drought loss = (droughts per decade ÷ 10) × drought-year loss × (1 − 0.85 × irrigated share) × (1 + 0.12 × ΔT)<br>
+      net = yield × price + insurance payouts − production cost − irrigation cost − premium − switching / moving cost
+    </p>
+    <p class="small muted">Insurance payouts are set at 40% of drought losses. Premiums scale with the premium slider, with drought frequency, and with warming. One-time costs (new sorghum equipment, about $50/acre; moving, about $150,000) are spread over 20 years. For Texas, the gap between the Texas land price and the after-cost Kansas sale price is financed at 6.5%. Whole-farm figures assume 780 acres for every option.</p>
+  </div>
+</section>
+
+<section>
+  <div class="card">
+    <h2>Where the numbers come from</h2>
+    <p class="small muted">Values are rounded planning numbers drawn from the sources below. They describe a typical farm, not any specific one.</p>
+    <div class="table-wrap">
+    <table class="sources">
+      <thead><tr><th>Assumption</th><th>Value used</th><th>Source</th></tr></thead>
+      <tbody>
+        <tr><td>Farm size</td><td>780 acres</td><td>USDA NASS, <a href="https://www.nass.usda.gov/AgCensus/">2022 Census of Agriculture</a>, Kansas average farm size</td></tr>
+        <tr><td>Kansas wheat yield (dryland / irrigated)</td><td>48 / 70 bu/ac</td><td>USDA NASS <a href="https://www.nass.usda.gov/Statistics_by_State/Kansas/">Kansas crop statistics</a>, about 10-year averages</td></tr>
+        <tr><td>Kansas sorghum yield (dryland / irrigated)</td><td>80 / 115 bu/ac</td><td>USDA NASS Kansas crop statistics</td></tr>
+        <tr><td>Texas Blackland corn yield (dryland)</td><td>125 bu/ac</td><td>USDA NASS <a href="https://www.nass.usda.gov/Statistics_by_State/Texas/">Texas county estimates</a>, Blackland Prairie counties</td></tr>
+        <tr><td>Crop prices</td><td>wheat $5.75, sorghum $3.90, corn $4.40 /bu</td><td>USDA <a href="https://www.ers.usda.gov/topics/farm-economy/agricultural-baseline-database/">Agricultural Projections (long-run baseline)</a></td></tr>
+        <tr><td>Production costs (excluding land)</td><td>$200 / $245 / $370 per acre</td><td>K-State <a href="https://www.agmanager.info/farm-management/budgets">AgManager crop budgets</a>; Texas A&amp;M AgriLife <a href="https://agecoext.tamu.edu/resources/crop-livestock-budgets/">Extension crop budgets</a></td></tr>
+        <tr><td>Heat damage, non-linear above about 29–30 °C</td><td>3.5–6.5% loss per °C, rising with each degree</td><td>Schlenker &amp; Roberts (2009), <a href="https://doi.org/10.1073/pnas.0906865106"><em>PNAS</em> 106:15594</a>; Tack, Barkley &amp; Nalley (2015), <a href="https://doi.org/10.1073/pnas.1415181112"><em>PNAS</em> 112:6931</a> (Kansas wheat trials)</td></tr>
+        <tr><td>Warming range</td><td>0 to +4 °C (default +1)</td><td>U.S. Global Change Research Program, <a href="https://nca2023.globalchange.gov/chapter/26/">Fifth National Climate Assessment, Ch. 26 Southern Great Plains</a></td></tr>
+        <tr><td>Drought frequency (default 3 per decade)</td><td>1–7 per decade</td><td><a href="https://droughtmonitor.unl.edu/">U.S. Drought Monitor</a> history for Kansas (2011–14, 2018, 2022–23)</td></tr>
+        <tr><td>Drought-year yield loss</td><td>wheat 35%, corn 28%, sorghum 22%</td><td>Kansas 2023 wheat harvest versus trend (USDA NASS); relative crop drought tolerance from K-State Research &amp; Extension</td></tr>
+        <tr><td>Irrigated share (default 15%)</td><td>0–60%</td><td>2022 Census of Agriculture, Kansas irrigated acres; <a href="https://www.kgs.ku.edu/HighPlains/">Kansas Geological Survey, High Plains / Ogallala aquifer</a></td></tr>
+        <tr><td>Farmer-paid insurance premiums</td><td>$12–28/acre today</td><td>USDA RMA <a href="https://www.rma.usda.gov/tools-reports/summary-of-business">Summary of Business</a>, Kansas and Texas</td></tr>
+        <tr><td>Land values</td><td>Kansas ≈ $2,600; Texas Blackland $2,000–6,000 /ac</td><td>USDA NASS <a href="https://www.nass.usda.gov/Publications/Todays_Reports/reports/land0824.pdf">Land Values 2024 Summary</a>; Texas A&amp;M <a href="https://www.recenter.tamu.edu/data/rural-land/">Real Estate Center rural land data</a></td></tr>
+        <tr><td>Land loan rate</td><td>6.5%</td><td>Federal Reserve Bank of Kansas City, <a href="https://www.kansascityfed.org/agriculture/ag-credit-survey/">Ag Credit Survey</a></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <h3 style="margin-top:16px">Limits of this model</h3>
+    <p class="small muted">This is a teaching model, not farm advice. It uses average years, so it hides the cash-flow shock of back-to-back droughts. It ignores price changes caused by regional crop failures, government disaster aid, and family and community ties that make moving costly in ways money doesn't capture. It also ignores the long-run decline of the Ogallala aquifer, which may make Kansas irrigation unavailable at any price.</p>
+  </div>
+</section>
+
+<footer>Built for a climate change course project. Model code: <a href="model.js">model.js</a>.</footer>
+</div>
+
+<script src="model.js"></script>
+<script>
+(function () {
+  "use strict";
+  var M = window.FarmModel;
+  var KEYS = ["wheat", "sorghum", "texas"];
+  var NAMES = { wheat: "Stay — wheat", sorghum: "Switch — sorghum", texas: "Move — Texas corn" };
+  var DEFAULTS = { warming: 1, drought: 3, irrigation: 15, premium: 30, txland: 3500 };
+  var PRESETS = {
+    dry: { warming: 1, drought: 6, irrigation: 0, premium: 30, txland: 3500 },
+    wet: { warming: 1, drought: 6, irrigation: 50, premium: 30, txland: 3500 },
+    cheapTx: { warming: 0.3, drought: 3, irrigation: 15, premium: 30, txland: 2400 },
+    hotTx: { warming: 3, drought: 3, irrigation: 15, premium: 30, txland: 2400 }
+  };
+  var ids = Object.keys(DEFAULTS);
+  var el = {};
+  ids.forEach(function (id) { el[id] = document.getElementById(id); });
+
+  function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+  function color(k) { return css("--" + k); }
+  function money(v, dec) {
+    var s = Math.abs(v).toLocaleString("en-US", { maximumFractionDigits: dec || 0, minimumFractionDigits: dec || 0 });
+    return (v < 0 ? "−$" : "$") + s;
+  }
+  function state() {
+    return {
+      warming: +el.warming.value,
+      drought: +el.drought.value,
+      irrigation: +el.irrigation.value / 100,
+      premiumRise: +el.premium.value / 100,
+      txLand: +el.txland.value
+    };
+  }
+  function svgEl(tag, attrs, text) {
+    var n = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    for (var a in attrs) n.setAttribute(a, attrs[a]);
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  function niceStep(range, target) {
+    var raw = range / target, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    var r = raw / mag;
+    return (r < 1.5 ? 1 : r < 3 ? 2 : r < 7 ? 5 : 10) * mag;
+  }
+
+  // ---------- outputs ----------
+  function labels(s) {
+    document.getElementById("warming-out").textContent = "+" + s.warming.toFixed(1) + " °C (+" + (s.warming * 1.8).toFixed(1) + " °F)";
+    document.getElementById("drought-out").textContent = s.drought + " in 10 yrs";
+    document.getElementById("irrigation-out").textContent = Math.round(s.irrigation * 100) + "%";
+    document.getElementById("premium-out").textContent = "+" + Math.round(s.premiumRise * 100) + "%";
+    document.getElementById("txland-out").textContent = "$" + s.txLand.toLocaleString("en-US") + "/ac";
+  }
+
+  function verdict(results) {
+    var sorted = results.slice().sort(function (a, b) { return b.net - a.net; });
+    var w = sorted[0], second = sorted[1];
+    var gap = (w.net - second.net) * M.FARM.acres;
+    var v = document.getElementById("verdict");
+    v.style.background = color(w.key + "-bg");
+    v.innerHTML = "";
+    var sw = document.createElement("span"); sw.className = "swatch"; sw.style.background = color(w.key);
+    var box = document.createElement("div");
+    box.innerHTML = '<div class="small muted">Best option in this scenario</div>' +
+      '<div class="big">' + NAMES[w.key] + ': ' + money(w.net) + '/acre · ' + money(w.farmNet) + '/yr for the farm</div>' +
+      '<div class="small">That beats ' + NAMES[second.key].toLowerCase() + ' by ' + money(gap) + ' a year across 780 acres' +
+      (w.net < 0 ? '. <strong>Even the best option loses money here.</strong>' : '.') + '</div>';
+    v.appendChild(sw); v.appendChild(box);
+  }
+
+  // ---------- line chart ----------
+  function lineChart(s) {
+    var svg = document.getElementById("line");
+    svg.innerHTML = "";
+    var W = 640, H = 340, m = { l: 64, r: 16, t: 14, b: 50 };
+    var xs = [], series = { wheat: [], sorghum: [], texas: [] };
+    for (var t = 0; t <= 4.0001; t += 0.1) {
+      xs.push(t);
+      var ss = Object.assign({}, s, { warming: t });
+      M.evaluateAll(ss).forEach(function (r) { series[r.key].push(r.net); });
+    }
+    var all = [].concat(series.wheat, series.sorghum, series.texas, [0]);
+    var lo = Math.min.apply(null, all), hi = Math.max.apply(null, all);
+    var step = niceStep(hi - lo, 6);
+    lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step;
+    var x = function (v) { return m.l + (v / 4) * (W - m.l - m.r); };
+    var y = function (v) { return m.t + (hi - v) / (hi - lo) * (H - m.t - m.b); };
+
+    for (var g = lo; g <= hi + 1e-9; g += step) {
+      svg.appendChild(svgEl("line", { x1: m.l, x2: W - m.r, y1: y(g), y2: y(g), stroke: Math.abs(g) < 1e-9 ? css("--muted") : css("--grid"), "stroke-width": Math.abs(g) < 1e-9 ? 1.25 : 1 }));
+      svg.appendChild(svgEl("text", { x: m.l - 8, y: y(g) + 4, "text-anchor": "end" }, money(g)));
+    }
+    for (var gx = 0; gx <= 4; gx++) {
+      svg.appendChild(svgEl("text", { x: x(gx), y: H - m.b + 18, "text-anchor": "middle" }, "+" + gx + " °C"));
+    }
+    svg.appendChild(svgEl("text", { x: (m.l + W - m.r) / 2, y: H - 8, "text-anchor": "middle", style: "fill:" + css("--text") + ";font-weight:600" }, "Extra growing-season warming (°C above today)"));
+    svg.appendChild(svgEl("text", { x: 14, y: (m.t + H - m.b) / 2, "text-anchor": "middle", transform: "rotate(-90 14 " + ((m.t + H - m.b) / 2) + ")", style: "fill:" + css("--text") + ";font-weight:600" }, "Net return ($ per acre per year)"));
+
+    // current marker
+    svg.appendChild(svgEl("line", { x1: x(s.warming), x2: x(s.warming), y1: m.t, y2: H - m.b, stroke: css("--muted"), "stroke-dasharray": "4 4" }));
+
+    var cur = M.evaluateAll(s);
+    KEYS.forEach(function (k) {
+      var d = series[k].map(function (v, i) { return (i ? "L" : "M") + x(xs[i]).toFixed(1) + " " + y(v).toFixed(1); }).join(" ");
+      svg.appendChild(svgEl("path", { d: d, fill: "none", stroke: color(k), "stroke-width": 3, "stroke-linejoin": "round" }));
+    });
+    // dots + value labels, nudged apart
+    var pts = cur.map(function (r) { return { k: r.key, v: r.net, py: y(r.net) }; }).sort(function (a, b) { return a.py - b.py; });
+    for (var i = 1; i < pts.length; i++) if (pts[i].ly == null) {}
+    var ly = pts.map(function (p) { return p.py; });
+    for (var j = 1; j < ly.length; j++) if (ly[j] - ly[j - 1] < 16) ly[j] = ly[j - 1] + 16;
+    var right = s.warming > 3;
+    pts.forEach(function (p, idx) {
+      svg.appendChild(svgEl("circle", { cx: x(s.warming), cy: p.py, r: 5, fill: color(p.k), stroke: css("--surface"), "stroke-width": 2 }));
+      svg.appendChild(svgEl("text", { x: x(s.warming) + (right ? -10 : 10), y: ly[idx] + 4, "text-anchor": right ? "end" : "start", style: "fill:" + color(p.k) + ";font-weight:700" }, money(p.v)));
+    });
+
+    var lg = document.getElementById("legend");
+    lg.innerHTML = KEYS.map(function (k) { return '<span><i class="swatch" style="background:' + color(k) + '"></i>' + NAMES[k] + '</span>'; }).join("");
+  }
+
+  // ---------- decision map ----------
+  function decisionMap(s) {
+    var svg = document.getElementById("map");
+    svg.innerHTML = "";
+    var W = 400, H = 330, m = { l: 52, r: 10, t: 10, b: 58 };
+    var nx = 20, ny = 12; // warming 0–4, drought 1–7
+    var cw = (W - m.l - m.r) / nx, ch = (H - m.t - m.b) / ny;
+    for (var i = 0; i < nx; i++) {
+      for (var j = 0; j < ny; j++) {
+        var wv = (i + 0.5) * 4 / nx, dv = 1 + (j + 0.5) * 6 / ny;
+        var b = M.best(Object.assign({}, s, { warming: wv, drought: dv }));
+        svg.appendChild(svgEl("rect", { x: m.l + i * cw, y: H - m.b - (j + 1) * ch, width: cw + 0.5, height: ch + 0.5, fill: color(b.key), opacity: b.net < 0 ? 0.45 : 0.9 }));
+      }
+    }
+    for (var gx = 0; gx <= 4; gx++) svg.appendChild(svgEl("text", { x: m.l + gx * (W - m.l - m.r) / 4, y: H - m.b + 16, "text-anchor": "middle" }, "+" + gx));
+    for (var gy = 1; gy <= 7; gy++) svg.appendChild(svgEl("text", { x: m.l - 8, y: H - m.b - (gy - 1) * (H - m.t - m.b) / 6 + 4, "text-anchor": "end" }, gy));
+    svg.appendChild(svgEl("text", { x: (m.l + W - m.r) / 2, y: H - m.b + 34, "text-anchor": "middle", style: "fill:" + css("--text") + ";font-weight:600" }, "Extra warming (°C)"));
+    svg.appendChild(svgEl("text", { x: 14, y: (m.t + H - m.b) / 2, "text-anchor": "middle", transform: "rotate(-90 14 " + ((m.t + H - m.b) / 2) + ")", style: "fill:" + css("--text") + ";font-weight:600" }, "Droughts per decade"));
+    svg.appendChild(svgEl("text", { x: m.l, y: H - 6, "text-anchor": "start" }, "Faded cells: the best option still loses money"));
+    var cx = m.l + s.warming / 4 * (W - m.l - m.r), cy = H - m.b - (s.drought - 1) / 6 * (H - m.t - m.b);
+    svg.appendChild(svgEl("circle", { cx: cx, cy: cy, r: 8, fill: "none", stroke: css("--surface"), "stroke-width": 4 }));
+    svg.appendChild(svgEl("circle", { cx: cx, cy: cy, r: 8, fill: "none", stroke: css("--text"), "stroke-width": 2 }));
+  }
+
+  // ---------- table ----------
+  function table(results) {
+    var winner = results.reduce(function (a, b) { return b.net > a.net ? b : a; }).key;
+    var rows = [
+      ["Base yield (bu/acre)", "baseYield", 0, "n"],
+      ["Heat loss (%)", "heatLossPct", 1, "p"],
+      ["Drought loss, average year (%)", "droughtLossPct", 1, "p"],
+      ["Expected yield (bu/acre)", "expYield", 1, "n"],
+      ["Crop revenue ($/acre)", "revenue", 0, "$"],
+      ["+ Insurance payouts ($/acre)", "payout", 0, "$"],
+      ["− Production cost ($/acre)", "prodCost", 0, "$"],
+      ["− Irrigation cost ($/acre)", "irrigation", 0, "$"],
+      ["− Insurance premium ($/acre)", "premium", 0, "$"],
+      ["− Switch / move / land loan ($/acre)", "oneTime", 0, "$"],
+      ["Net return ($/acre/yr)", "net", 0, "$", "total"],
+      ["Whole farm, 780 acres ($/yr)", "farmNet", 0, "$", "total"]
+    ];
+    var tb = document.querySelector("#table tbody");
+    tb.innerHTML = rows.map(function (r) {
+      return '<tr class="' + (r[4] || "") + '"><td>' + r[0] + '</td>' + results.map(function (res) {
+        var v = res[r[1]], txt = r[3] === "$" ? money(v) : r[3] === "p" ? v.toFixed(r[2]) + "%" : v.toFixed(r[2]);
+        var cls = (r[4] ? (v >= 0 ? "pos" : "neg") : "") + (res.key === winner ? " win" : "");
+        return '<td class="' + cls + '">' + txt + '</td>';
+      }).join("") + '</tr>';
+    }).join("");
+  }
+
+  function render() {
+    var s = state();
+    labels(s);
+    var results = M.evaluateAll(s);
+    verdict(results);
+    lineChart(s);
+    decisionMap(s);
+    table(results);
+  }
+
+  function apply(p) {
+    ids.forEach(function (id) { el[id].value = p[id]; });
+    render();
+  }
+
+  ids.forEach(function (id) { el[id].addEventListener("input", render); });
+  document.getElementById("reset").addEventListener("click", function () { apply(DEFAULTS); });
+  document.querySelectorAll("[data-preset]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      apply(PRESETS[b.getAttribute("data-preset")]);
+      document.getElementById("tool").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+  if (window.matchMedia) {
+    var mq = window.matchMedia("(prefers-color-scheme: dark)");
+    if (mq.addEventListener) mq.addEventListener("change", render);
+  }
+  render();
+})();
+</script>
+</body>
+</html>
